@@ -4,12 +4,12 @@ import { Records } from './records.schema';
 @Controller('records')
 export class RecordsController {
     constructor(private readonly recordsService: RecordsService) {}
-    @Post('/')
-    async create(@Body() record: Partial<Records>): Promise<Records> {
-        return this.recordsService.create(record);
+    @Post('score')
+    async submitScore(@Body() body :{userId:string,name:string,score:number}){
+        return this.recordsService.submitScore(body.userId,body.name,body.score);
     }
-    @Get('/all')
-    async findAll(): Promise<Records[]> {
-        return this.recordsService.findAll();
+    @Get('all')
+    async findAll() {
+        return this.recordsService.getTopPlayers();
     }
 }
