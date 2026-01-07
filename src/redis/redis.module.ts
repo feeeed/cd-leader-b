@@ -8,9 +8,9 @@ import Redis from 'ioredis';
       provide: 'REDIS_CLIENT',
       useFactory: () => {
         return new Redis({
-          host: 'redis-19463.c293.eu-central-1-1.ec2.cloud.redislabs.com',
+          host: process.env.REDIS_HOST,
           port: 19463,
-          password: 'default',
+          password: process.env.REDIS_PASS,
           username: 'default'
         });
       },

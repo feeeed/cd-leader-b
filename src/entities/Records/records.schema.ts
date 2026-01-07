@@ -5,6 +5,8 @@ export type RecordsDocument = HydratedDocument<Records>;
 
 @Schema()
 export class Records {
+  @Prop({ required: true, unique: true })
+  userId: number;
   @Prop({ required:true,unique:true})
   name: string;
   @Prop({default:0})
