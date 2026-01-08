@@ -5,8 +5,8 @@ import { Records } from './records.schema';
 export class RecordsController {
     constructor(private readonly recordsService: RecordsService) {}
     @Post('score')
-    async submitScore(@Body() body :{userId:number,name:string,score:number}){
-        return this.recordsService.submitScore(body.userId,body.name,body.score);
+    async submitScore(@Body() body :{name:string,score:number}){
+        return this.recordsService.submitScore(body.name,body.score);
     }
     @Get('all')
     async findAll() {

@@ -9,9 +9,9 @@ import Redis from 'ioredis';
       useFactory: () => {
         return new Redis({
           host: process.env.REDIS_HOST,
-          port: 19463,
-          password: process.env.REDIS_PASS,
-          username: 'default'
+          port: Number(process.env.REDIS_PORT) || 6379,
+          // password: process.env.REDIS_PASS,
+          // username: 'default'
         });
       },
     },
