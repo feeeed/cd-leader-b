@@ -16,5 +16,14 @@ export class RecordsController {
     async getDbAll(): Promise<Records[]> {
         return this.recordsService.findAll();
     }
+    @Get('ping')
+    getServerTime(){
+        const now = new Date();
+        return{
+            iso: now.toISOString(),
+            local: now.toString(),
+            timeStamp: now.getTime(),
+        }
+    }
 
 }
