@@ -4,6 +4,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { v4 as uuidv4 } from 'uuid';
 import Redis from 'ioredis';
+import { UsersService } from '../Users/users.service';
 
 @Injectable()
 export class RecordsService {
@@ -12,6 +13,7 @@ export class RecordsService {
   constructor(
     @Inject('REDIS_CLIENT') private readonly redis: Redis,
     @InjectModel(Records.name) private recordsModel: Model<Records>,
+    private usersService: UsersService,
   ) {}
 
   async submitScore(name: string, score: number) {
@@ -30,6 +32,7 @@ export class RecordsService {
         message: 'New user created and score submitted',
         score: score,
       };
+
     }
     await this.redis.zadd(this.LEADERBOARD_KEY, 'GT', score, user.userId);
     return {
@@ -57,7 +60,6 @@ export class RecordsService {
       rank: number;
     }[] = [];
 
-    const nicknameKeys: string[] = [];
     for (let i = 0; i < rawData.length; i += 2) {
       const userId = String(rawData[i]);
       entries.push({
@@ -65,108 +67,71 @@ export class RecordsService {
         score: Number(rawData[i + 1]),
         rank: i / 2 + 1,
       });
-      nicknameKeys.push(this.USERS_CACHE + userId);
     }
-    const cachedNicknames = await this.redis.mget(nicknameKeys);
 
-    const missingNicknameIndexes: string[] = [];
-    const nicknameMap = new Map<string, string>();
-    for (let i = 0; i < cachedNicknames.length; i++) {
-      const nickname = cachedNicknames[i];
-      const userId = entries[i].userId;
-      if (nickname) {
-        nicknameMap.set(userId, nickname);
-      } else {
-        missingNicknameIndexes.push(userId);
-      }
-    }
-    // cachedNicknames.forEach((nickname, index) => {
-    //     const userId = entries[index].userId;
-    //     if(nickname){
-    //         nicknameMap.set(userId, nickname);
-    //     } else {
-    //         missingNicknameIndexes.push(userId);
-    //     }
-    // });
-    if (missingNicknameIndexes.length) {
-      const users = await this.recordsModel
-        .find({ userId: { $in: missingNicknameIndexes } })
-        .select({ userId: 1, name: 1 })
-        .lean();
-
-      const pipeline = this.redis.pipeline();
-      for (let i = 0; i < users.length; i++) {
-        nicknameMap.set(users[i].userId, users[i].name);
-
-        pipeline.set(
-          this.USERS_CACHE + users[i].userId,
-          users[i].name,
-          'EX',
-          60 * 60,
-        );
-      }
-      // users.forEach(user => {
-      //     nicknameMap.set(user.userId, user.name);
-      //     pipeline.set(this.USERS_CACHE + user.userId, user.name, 'EX', 60*60);
-      // });
-      await pipeline.exec();
-    }
+    const nicknameMap = await this.usersService.getUserNames(
+      entries.map((e) => e.userId),
+    );
 
     return entries.map((entry) => ({
       name: nicknameMap.get(entry.userId),
       score: entry.score,
       rank: entry.rank,
     }));
-
-    // console.log(this.formatZSet(rawData));
-    // return this.formatZSet(rawData);
   }
 
-  private async syncWithMongo(userId: string, name: string, score: number) {
-    await this.recordsModel.findByIdAndUpdate(
+  async getAroundPlayerByNickname(nickname: string, range: number = 5) {
+    const userId = await this.usersService.getUserIdByNickname(nickname);
+    if (!userId) return null;
+    return this.getAroundPlayer(userId, range);
+  }
+  
+  async getAroundPlayer(userId: string, range: number = 5) {
+    const rank = await this.redis.zrevrank(
+      this.LEADERBOARD_KEY,
       userId,
-      {
-        name: name,
-        $max: { score: score },
-      },
-      { upsert: true, new: true },
     );
-  }
-  async create(record: Partial<Records>): Promise<Records> {
-    const newRecord = new this.recordsModel(record);
-    return newRecord.save();
-  }
-  private formatZSet(data: string[]) {
-    const result: { userId: number; score: number; rank: number }[] = [];
-    for (let i = 0; i < data.length; i += 2) {
-      result.push({
-        userId: Number(data[i]),
-        score: Number(data[i + 1]),
+
+    if(rank === null) return null;
+
+    const start = Math.max(0, rank - range);
+    const end = rank + range;
+
+    const rawData = await this.redis.zrange(
+      this.LEADERBOARD_KEY,
+      start,
+      end,
+      'REV',
+      'WITHSCORES',
+    );
+    if(!rawData.length) return [];
+
+    const entries: {
+      userId: string;
+      score: number;
+      rank: number;
+    }[] = [];
+
+    for (let i = 0; i < rawData.length; i += 2) {
+      const userId = String(rawData[i]);
+      entries.push({
+        userId,
+        score: Number(rawData[i + 1]),
         rank: i / 2 + 1,
       });
     }
+    
+    const nicknameMap = await this.usersService.getUserNames(
+      entries.map((e) => e.userId),
+    );
+    return entries.map((entry) => ({
+      name: nicknameMap.get(entry.userId),
+      score: entry.score,
+      rank: entry.rank,
+      isMe: entry.userId === userId,
+    }));
+  
 
-    return result;
   }
 
-  async findAll(): Promise<Records[]> {
-    // const pipeline = [
-    //     { $addFields: { scoreNumber: { $toDouble: '$score' } } },
-    //     { $sort: { scoreNumber: -1 } },
-    //     { $limit: 5 },
-    // ];
-    return this.recordsModel
-      .aggregate([
-        {
-          $addFields: { scoreNumber: { $toDouble: '$score' } },
-        },
-        {
-          $sort: { scoreNumber: -1 },
-        },
-        {
-          $limit: 5,
-        },
-      ])
-      .exec();
-  }
 }

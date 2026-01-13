@@ -15,10 +15,6 @@ export class RecordsController {
     async findAll() {
         return this.recordsService.getTopPlayers();
     }
-    @Get('dbAll')
-    async getDbAll(): Promise<Records[]> {
-        return this.recordsService.findAll();
-    }
     @Get('ping')
     getServerTime(){
         const now = new Date();
@@ -27,6 +23,10 @@ export class RecordsController {
             local: now.toString(),
             timeStamp: now.getTime(),
         }
+    }
+    @Get('/around/nickname')
+    async getAroundPlayerByNickname(@Body() body: {nickname:string, range?:number}){
+        return this.recordsService.getAroundPlayerByNickname(body.nickname, body.range);
     }
 
 }
