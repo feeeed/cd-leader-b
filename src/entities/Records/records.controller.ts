@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards, Query } from '@nestjs/common';
 import { RecordsService } from './records.service';
 import { Records } from './records.schema';
+
 import { ApiKeyGuard } from '../../auth/api-key.guard';
 @UseGuards(ApiKeyGuard)
 @Controller('records')
@@ -24,9 +25,12 @@ export class RecordsController {
             timeStamp: now.getTime(),
         }
     }
-    @Get('/around/nickname')
-    async getAroundPlayerByNickname(@Body() body: {nickname:string, range?:number}){
-        return this.recordsService.getAroundPlayerByNickname(body.nickname, body.range);
+    @Get('around')
+    async getAroundPlayerByNickname(
+        @Query('name') nickname:string,
+        @Query('range') range?:number
+    ){
+        return this.recordsService.getAroundPlayerByNickname(nickname, range);
     }
 
 }
