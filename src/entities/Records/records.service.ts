@@ -32,7 +32,6 @@ export class RecordsService {
         message: 'New user created and score submitted',
         score: score,
       };
-
     }
     await this.redis.zadd(this.LEADERBOARD_KEY, 'GT', score, user.userId);
     return {
@@ -60,6 +59,8 @@ export class RecordsService {
       rank: number;
     }[] = [];
 
+    const userIds: string[] = [];
+
     for (let i = 0; i < rawData.length; i += 2) {
       const userId = String(rawData[i]);
       entries.push({
@@ -67,11 +68,10 @@ export class RecordsService {
         score: Number(rawData[i + 1]),
         rank: i / 2 + 1,
       });
+      userIds.push(userId);
     }
 
-    const nicknameMap = await this.usersService.getUserNames(
-      entries.map((e) => e.userId),
-    );
+    const nicknameMap = await this.usersService.getUserNames(userIds);
 
     return entries.map((entry) => ({
       name: nicknameMap.get(entry.userId),
@@ -83,16 +83,19 @@ export class RecordsService {
   async getAroundPlayerByNickname(nickname: string, range: number = 5) {
     const userId = await this.usersService.getUserIdByNickname(nickname);
     if (!userId) return null;
+    console.log(userId);
     return this.getAroundPlayer(userId, range);
   }
-  
-  async getAroundPlayer(userId: string, range: number = 5) {
-    const rank = await this.redis.zrevrank(
-      this.LEADERBOARD_KEY,
-      userId,
-    );
+  // bullshit
+  // async getRank(userId: string) {
+  //   return await this.redis.zrevrank(this.LEADERBOARD_KEY, userId);
+  // }
 
-    if(rank === null) return null;
+  async getAroundPlayer(userId: string, range: number = 5) {
+    const rank = await this.redis.zrevrank(this.LEADERBOARD_KEY, userId);
+
+    if (rank === null) return null;
+    console.log('User rank:', rank);
 
     const start = Math.max(0, rank - range);
     const end = rank + range;
@@ -104,7 +107,7 @@ export class RecordsService {
       'REV',
       'WITHSCORES',
     );
-    if(!rawData.length) return [];
+    if (!rawData.length) return [];
 
     const entries: {
       userId: string;
@@ -112,26 +115,25 @@ export class RecordsService {
       rank: number;
     }[] = [];
 
+    const userIds: string[] = [];
+
     for (let i = 0; i < rawData.length; i += 2) {
       const userId = String(rawData[i]);
+      const absoluteRank = start + i / 2 + 1;
       entries.push({
         userId,
         score: Number(rawData[i + 1]),
-        rank: i / 2 + 1,
+        rank: absoluteRank,
       });
+      userIds.push(userId);
     }
-    
-    const nicknameMap = await this.usersService.getUserNames(
-      entries.map((e) => e.userId),
-    );
+
+    const nicknameMap = await this.usersService.getUserNames(userIds);
     return entries.map((entry) => ({
       name: nicknameMap.get(entry.userId),
       score: entry.score,
       rank: entry.rank,
       isMe: entry.userId === userId,
     }));
-  
-
   }
-
 }
